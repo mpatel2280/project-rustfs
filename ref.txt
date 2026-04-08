@@ -19,7 +19,7 @@ go: downloading github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.15
 go: downloading github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.34
 
 ----------------------------------------------------------------------------
-
+go mod init rustfs-go-sdk
 go mod tidy
 
 go run ./cmd/rustfs-reader -list-buckets
