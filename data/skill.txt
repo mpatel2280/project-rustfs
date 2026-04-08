@@ -1,0 +1,121 @@
+---
+name: rustfs-golang-sdk
+description: >
+  Guide for interacting with RustFS object storage using the AWS SDK for Go (S3-compatible API).
+  Use this skill whenever the user wants to connect to RustFS from Go, perform bucket or object
+  operations (create, list, delete, upload, download), configure credentials, or integrate RustFS
+  into a Go application. Trigger on any mention of "RustFS", "rustfs Go SDK", "RustFS golang",
+  "object storage Go", or S3-compatible Go client targeting a RustFS endpoint.
+---
+
+# RustFS Golang SDK
+
+RustFS is fully S3-compatible. The Go integration uses the standard **AWS SDK for Go v2**
+(`github.com/aws/aws-sdk-go-v2`) pointed at a RustFS endpoint.
+
+## Prerequisites
+
+- A running RustFS instance. See the [Installation Guide](https://docs.rustfs.com/installation/).
+- Access keys. See [Access Key Management](https://docs.rustfs.com/administration/iam/access-token.html).
+- Go 1.18+ with modules enabled.
+
+## Dependencies
+
+```bash
+go get github.com/aws/aws-sdk-go-v2
+go get github.com/aws/aws-sdk-go-v2/config
+go get github.com/aws/aws-sdk-go-v2/credentials
+go get github.com/aws/aws-sdk-go-v2/service/s3
+```
+
+## Client Initialization
+
+Read credentials and endpoint from environment variables, then build the S3 client:
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "os"
+
+    "github.com/aws/aws-sdk-go-v2/aws"
+    "github.com/aws/aws-sdk-go-v2/credentials"
+    "github.com/aws/aws-sdk-go-v2/service/s3"
+)
+
+func newRustFSClient() *s3.Client {
+    region          := os.Getenv("RUSTFS_REGION")
+    accessKeyID     := os.Getenv("RUSTFS_ACCESS_KEY_ID")
+    secretAccessKey := os.Getenv("RUSTFS_SECRET_ACCESS_KEY")
+    endpoint        := os.Getenv("RUSTFS_ENDPOINT_URL")
+
+    if accessKeyID == "" || secretAccessKey == "" || region == "" || endpoint == "" {
+        log.Fatal("missing env: RUSTFS_ACCESS_KEY_ID / RUSTFS_SECRET_ACCESS_KEY / RUSTFS_REGION / RUSTFS_ENDPOINT_URL")
+    }
+
+    cfg := aws.Config{
+        Region: region,
+        EndpointResolver: aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+            return aws.Endpoint{URL: endpoint}, nil
+        }),
+        Credentials: aws.NewCredentialsCache(
+            credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, ""),
+        ),
+    }
+
+    return s3.NewFromConfig(cfg, func(o *s3.Options) {
+        o.UsePathStyle = true // required for RustFS
+    })
+}
+```
+
+> **UsePathStyle must be `true`** — RustFS uses path-style URLs (`endpoint/bucket/key`),
+> not virtual-hosted style (`bucket.endpoint/key`).
+
+## Environment Variables
+
+| Variable                  | Description                          | Example                        |
+|---------------------------|--------------------------------------|--------------------------------|
+| `RUSTFS_ENDPOINT_URL`     | RustFS server address (with scheme)  | `http://localhost:9000`        |
+| `RUSTFS_REGION`           | Region name (any string works)       | `us-east-1`                    |
+| `RUSTFS_ACCESS_KEY_ID`    | Access key                           | `rustfsadmin`                  |
+| `RUSTFS_SECRET_ACCESS_KEY`| Secret key                           | `rustfsadmin`                  |
+
+---
+
+## Common Operations
+
+For detailed code examples of every operation, see `references/operations.md`.
+
+### Quick reference
+
+| Operation       | SDK Method                  |
+|-----------------|-----------------------------|
+| Create bucket   | `client.CreateBucket`       |
+| List buckets    | `client.ListBuckets`        |
+| Delete bucket   | `client.DeleteBucket`       |
+| List objects    | `client.ListObjectsV2`      |
+| Upload object   | `client.PutObject`          |
+| Download object | `client.GetObject`          |
+
+---
+
+## Error Handling Pattern
+
+```go
+if err != nil {
+    log.Fatalf("operation failed: %v", err)
+}
+```
+
+All SDK methods return `(output, error)`. Always check the error before using the output.
+
+---
+
+## References
+
+- `references/operations.md` — Full code examples for all bucket and object operations
+- Official docs: https://docs.rustfs.com/developer/sdk/go.html
+- AWS SDK v2 docs: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3
